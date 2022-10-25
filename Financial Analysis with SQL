@@ -1,0 +1,158 @@
+Financial Analysis with SQL 
+PURPOSE: The purpose of this analysis is to easily search for either single instances of data or for data that match a set of requirements. 
+KPI'S: Annual revenue, Total sales, Revenues / Profitability (monthly), Significant deals booked (monthly), Geographic split (monthly), Comissions.
+
+Requirements:
+1. What is the total sales of the company?
+SELECT Sum(total_order_amount) as sales
+FROM cursosdata.fac_orders;
+  
+ 2. What is the total sales per year?
+ SELECT year(date_order) as year,
+sum(total_order_amount) as sales
+FROM cursosdata.fac_order
+GROUP BY year(date_order)
+ 
+3. What is the total sales per product?
+SELECT name_product,
+sum(total_order_amount) as sales
+FROM cursosdata.fac_orders p
+LEFT JOIN dim_product pr on pr.SKU_product = p.SKU_product
+GROUP BY name_product
+ORDER BY sum(total_order_amount) DESC
+
+4. What is the total sales by product but by quantity?
+SELECT name_product,
+sum(total_order_amount) as sales,
+sum(quantity_order) as quantity
+FROM cursosdata.fac_orders p
+LEFT JOIN dim_product pr on pr.SKU_product = p.SKU_product
+GROUP BY name_product
+ORDER BY sum(total_order_amount) DESC
+
+5. At what price has each product been sold? Could you get the unique value?
+SELECT 
+ DISTINCT name_product,
+cost_order
+FROM cursosdata.fac_orders p
+LEFT JOIN cursosdata.dim_product pr on pr.SKU_product = p.SKU_product
+
+6. what could we attribute this growth in sales? Could we see the sales by product and by year?
+SELECT name_product,
+year(date_order) as year,
+sum(total_order_amount) as sales
+sum(quantity_order) as quantity
+FROM cursosdata.fac_orders p
+LEFT JOIN dim_producto pr on pr.SKU_producto = p.SKU_producto
+GROUP BY year(date_order),name_product
+ORDER BY name_product,year(date_order) ASC
+
+7. What are the sales by months of the year 2021? Order the sales from highest to lowest.
+SELECT month(date_order) as month,
+sum(total_order_amount) as sales
+FROM cursosdata.fac_orders 
+WHERE year(date_order)=2021
+GROUP BY month(date_order)
+ORDER BY sum(total_order_amount) desc
+
+8. What are the top 3 customers who buy in monetary terms? We need to bring the full name with last name in a single field
+SELECT 
+CONCAT(name_client," ",surname_client) as complete_name,
+sum(total_order_amount) as sales,
+format(sum(total_order_amount), '##,###,00') as sales_2
+FROM cursosdata.fac_orders pe
+LEFT JOIN cursosdata.dim_clientes c on c.id_cliente = pe.id_cliente
+GROUP BY complete_name
+ORDER BY sales desc
+LIMIT 3
+
+9. What are the top 3 customers who buy by quantity? We need you to bring your full name with last name
+SELECT 
+CONCAT(nombre_cliente," ",apellido_cliente) as complete_name,
+sum(quantity_order) as quantity
+FROM cursosdata.fac_orders  pe
+LEFT JOIN cursosdata.dim_clientes c on c.id_cliente = pe.id_cliente
+GROUP BY complete_name
+ORDER BY cantidad desc
+LIMIT 3
+
+10. What is the payment method with which customers pay the most?
+SELECT 
+type_payment_order,
+sum(total_order_amount) as sales
+FROM cursosdata.fac_orders 
+GROUP BY type_payment_order
+
+11. How much is the total amount in monetary terms used in coupons?
+SELECT sum(importe_de_descuento_order) as importe_coupons
+FROM cursosdata.fac_orders 
+
+12. What is the total number of coupons used in sales in quantitative terms?
+Compare it with all sales and calculate the percentage in quantitative terms.
+with coupons as (
+SELECT id_order,
+codigo_cupon_order,
+CASE WHEN codigo_cupon_order='' then 0 else 1 end as coupons
+FROM cursosdata.fac_orders )
+SELECT sum(coupons) as total_coupons,
+count(DISTINCT p.id_order) as orders,
+sum(coupons)/count(DISTINCT p.id_order) as porcentaje
+FROM cursosdata.fac_orders  p
+LEFT JOIN coupons c on c.id_order=p.id_order
+
+13. Same calculation but broken down by year
+with coupons as (
+SELECT id_order,
+codigo_coupon_order,
+CASE WHEN codigo_cupon_order='' then 0 else 1 end as coupons
+FROM cursosdata.fac_orders )
+
+SELECT 
+year(date_order) as year,
+sum(coupons) as total_coupons,
+count(DISTINCT p.id_order) as orders,
+sum(coupons)/count(DISTINCT p.id_order) as porcentaje
+FROM cursosdata.fac_orders  p
+LEFT JOIN coupons c on c.id_order=p.id_order
+GROUP BY anio
+
+14. What is the total commissions paid to stripe?
+SELECT ABS(sum(comision_payment)) as total_comisiones
+FROM cursosdata.fac_payments_stripe;
+
+15. What is the commission percentage of each order placed by Stripe?
+SELECT *,
+comision_payment/importe_payment as porcentaje
+FROM cursosdata.fac_orders  p
+INNER JOIN cursosdata.fac_payments_stripe s on s.id_order=p.id_order
+
+16. From the previous exercise, what is the mean of the total percentage rounded to two decimal places.
+SELECT
+ROUND(AVG(comision_payment/importe_payment),3) as porcentaje,
+FORMAT(AVG(comision_payment*100/importe_payment),1) as porcentaje_martin
+FROM cursosdata.fac_orders  p
+INNER JOIN cursosdata.fac_payments_stripe s on s.id_order=p.id_order
+
+17. Calculate total sales, sales without STRIPE commission and DE STRIPE commissions per year.
+SELECT
+year(date_order) as year,
+sum(total_order_amount) as total_sales ,
+IFNULL(sum(comision_payment),0) as comissions,
+sum(total_order_amount) + IFNULL(sum(comision_payment),0) as sales_net
+FROM cursosdata.fac_orders  p
+LEFT JOIN cursosdata.fac_payments_stripe s on s.id_order=p.id_order
+GROUP BY year(date_order)
+
+18. How could we know the percentage of sales over the total of each course to see if the Pareto law is fulfilled, which courses should continue and focus and which should be removed?
+SELECT DISTINCT name_product,
+sum(total_order_amount) OVER (PARTITION BY name_product) as sales,
+sum(total_order_amount) OVER (PARTITION BY name_product) / sum(total_order_amount) OVER() * 100 as sales_porcentaje
+FROM cursosdata.fac_orders  p
+LEFT JOIN dim_producto pr on pr.SKU_producto = p.SKU_producto
+
+UNION ALL
+
+SELECT 'Total',
+sum(total_order_amount)  as sales,
+100 as sales_porcentaje
+FROM cursosdata.fac_orders  p
