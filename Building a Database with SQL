@@ -1,8 +1,9 @@
 **PROJECT- Building a Database With SQL **
-Purpose: The purpose of this project is to provide an environment that is both convenient and efficient for users to retrieve and store information.
+PURPOSE:The purpose of this project is to provide an environment that is both convenient and efficient for users to retrieve and store information.
 The design of this Database is made to divide the information into subject-based tables to reduce redundant data. 
 Provides Access with the information it requires to join the information in the tables together as needed. 
 Helps support and ensure the accuracy and integrity of your information. 
+
 
 CREATE SCHEMA proyect_001;
 USE proyect_001;
@@ -27,7 +28,7 @@ CREATE TABLE dim_products (
   name_product text,
   publish_product int  NULL,
   inventary_product text,
-  precio_normal_product int NOT NULL,
+  price_normal_product int NOT NULL,
   category_product text,
   PRIMARY KEY (SKU_product)
 );
