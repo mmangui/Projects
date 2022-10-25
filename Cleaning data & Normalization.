@@ -1,0 +1,152 @@
+DATA CLEANING & NORMALIZATION OF THE DATA
+PORPUSE: Data cleaning and Normalization ensures that your database is clean, organized, and primed for use. 
+
+STEPS FOLLOWED:
+1. Determine the critical data values you need for your analysis.
+2. Collect the data you need (from all the differents DB'S), then sort and organize it.
+3. Identify duplicate or irrelevant values and remove them.
+4. Search for missing values and fill them in, so you have a complete dataset.
+5. Fix any remaining structural or repetitive errors in the dataset.
+6. Identify outliers and remove them, so they will not interfere with your analysis.
+7. Validate your dataset to ensure it is ready for data transformation and analysis.
+8. Once the set has been validated, perform your transformation and analysis.
+
+
+1. Data exploration: 
+SELECT * 
+FROM datoscrudos.raw_productos_wocommerce;
+
+2. Clean the data from the original table to create a new one.
+SELECT
+id as id_producto,
+sku as sku_producto,
+nombre as nombre_producto,
+publicado as publicado_producto,
+inventario as inventario_producto,
+precio_normal as precio_normal_producto,
+categorias as categoria_producto
+FROM datoscrudos.raw_productos_wocommerce
+
+3. Insert the records with the cleaning done to the created table.
+INSERT INTO cursosdata.dim_producto
+
+SELECT
+id as id_producto,
+sku as sku_producto,
+nombre as nombre_producto,
+publicado as publicado_producto,
+inventario as inventario_producto,
+precio_normal as precio_normal_producto,
+categorias as categoria_producto
+FROM datoscrudos.raw_productos_wocommerce
+
+4. CREATION OF THE SECOND TABLE, exploration, cleaning, normalization and insert the clean data to the new table: 
+
+# 1) Convert the date_created field that comes as timestamp to just date
+
+SELECT
+id as id_cliente,
+DATE(STR_TO_DATE(date_created,"%d/%m/%Y %H:%i:%s")) AS fecha_creacion_cliente,
+billing
+FROM datoscrudos.raw_clientes_wocommerce;
+
+# 2) Extract from the billing field, all the client descriptions that we need learning to parse a JSON. 
+SELECT
+id as id_cliente,
+DATE(STR_TO_DATE(date_created,"%d/%m/%Y %H:%i:%s")) AS fecha_creacion_cliente,
+JSON_VALUE(billing,'$[0].first_name') AS nombre_cliente,
+JSON_VALUE(billing,'$[0].last_name') AS apellido_cliente,
+JSON_VALUE(billing,'$[0].email') AS email_cliente,
+JSON_VALUE(billing,'$[0].phone') AS telefono_cliente,
+JSON_VALUE(billing,'$[0].Region') AS region_cliente,
+JSON_VALUE(billing,'$[0].country') AS pais_cliente,
+JSON_VALUE(billing,'$[0].postcode') AS codigo_postal_cliente,
+JSON_VALUE(billing,'$[0].address_1') AS direccion_cliente
+FROM datoscrudos.raw_clientes_wocommerce
+
+# 3) Insert the clean data into the new table. 
+INSERT INTO cursosdata.dim_clientes
+
+SELECT
+id as id_cliente,
+DATE(STR_TO_DATE(date_created,"%d/%m/%Y %H:%i:%s")) AS fecha_creacion_cliente,
+JSON_VALUE(billing,'$[0].first_name') AS nombre_cliente,
+JSON_VALUE(billing,'$[0].last_name') AS apellido_cliente,
+JSON_VALUE(billing,'$[0].email') AS email_cliente,
+JSON_VALUE(billing,'$[0].phone') AS telefono_cliente,
+JSON_VALUE(billing,'$[0].Region') AS region_cliente,
+JSON_VALUE(billing,'$[0].country') AS pais_cliente,
+JSON_VALUE(billing,'$[0].postcode') AS codigo_postal_cliente,
+JSON_VALUE(billing,'$[0].address_1') AS direccion_cliente
+FROM datoscrudos.raw_clientes_wocommerce
+
+
+
+# 1) Sustituir el nombre del producto por el id.
+
+	SELECT
+		numero_de_pedido,
+		estado_de_pedido,
+		fecha_de_pedido,
+    #p.SKU_producto,
+    CASE WHEN p.SKU_producto IS NULL THEN 3 ELSE p.SKU_producto END as SKU_producto,
+		`id cliente` AS id_cliente,
+		titulo_metodo_de_pago,
+		coste_articulo,
+		importe_de_descuento_del_carrito,
+		importe_total_pedido,
+		cantidad,
+		cupon_articulo
+	FROM datoscrudos.raw_pedidos_wocommerce w
+	LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
+
+# 2) Estandarizamos la columna método de pago
+
+	SELECT
+		numero_de_pedido,
+		estado_de_pedido,
+		fecha_de_pedido,
+    CASE WHEN p.SKU_producto IS NULL THEN 3 ELSE p.SKU_producto END as SKU_producto,
+		`id cliente` AS id_cliente,
+		CASE WHEN titulo_metodo_de_pago LIKE '%Stripe%' THEN 'Stripe' ELSE 'Tarjeta' END AS metodo_pago_pedido,
+		coste_articulo,
+		importe_de_descuento_del_carrito,
+		importe_total_pedido,
+		cantidad,
+		cupon_articulo
+	FROM datoscrudos.raw_pedidos_wocommerce w
+	LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
+
+# 3) Convertir a date la columna fecha_pedido
+
+		SELECT
+		numero_de_pedido,
+		estado_de_pedido,
+		DATE(fecha_de_pedido) AS fecha_pedido,
+    CASE WHEN p.SKU_producto IS NULL THEN 3 ELSE p.SKU_producto END as SKU_producto,
+		`id cliente` AS id_cliente,
+		CASE WHEN titulo_metodo_de_pago LIKE '%Stripe%' THEN 'Stripe' ELSE 'Tarjeta' END AS metodo_pago_pedido,
+		coste_articulo,
+		importe_de_descuento_del_carrito,
+		importe_total_pedido,
+		cantidad,
+		cupon_articulo
+	FROM datoscrudos.raw_pedidos_wocommerce w
+	LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
+
+# 4) Redondear decimales de la columna  coste_articulo a enteros
+
+SELECT
+		numero_de_pedido,
+		estado_de_pedido,
+		DATE(fecha_de_pedido) AS fecha_pedido,
+    CASE WHEN p.SKU_producto IS NULL THEN 3 ELSE p.SKU_producto END as SKU_producto,
+		`id cliente` AS id_cliente,
+		CASE WHEN titulo_metodo_de_pago LIKE '%Stripe%' THEN 'Stripe' ELSE 'Tarjeta' END AS metodo_pago_pedido,
+		CEILING(coste_articulo) AS costo_pedido,
+		importe_de_descuento_del_carrito,
+		importe_total_pedido,
+		cantidad,
+		cupon_articulo
+	FROM datoscrudos.raw_pedidos_wocommerce w
+	LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
