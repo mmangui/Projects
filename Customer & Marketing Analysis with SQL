@@ -1,0 +1,97 @@
+CUSTOMER & MARKETING ANALYSIS WITH SQL 
+PURPOSE: The main goal is to help the marketing team to help us understand where is traffic coming from, and how it performs in terms of volume and conversion rates.
+We will be also adjusting bids to optimize the marketing budgets.
+KPI'S: Customer acquisition and customer journey analysis, Media analytics, Bounce rate, Top clients, ROI, CAC, Conversion Rate, CPC.  
+
+Customer segmentation    
+1. Create a customer segment by **sales** using the following ranges:
+with segmeno_clients_sales as(
+SELECT 
+CONCAT(name_client," ",surname_client) as complet_name,
+CASE WHEN sum(total_order_amount)< 500 THEN '0 A 500'
+WHEN (sum(total_order_amount)> 500 AND sum(total_order_amount)< 1000) THEN '500 A 1000'
+WHEN (sum(total_order_amount)> 1000 AND sum(total_order_amount)< 2000) THEN '1000 A 2000'
+WHEN (sum(total_order_amount)> 2000 AND sum(total_order_amount)< 5000) THEN '2000 A 5000'
+WHEN (sum(total_order_amount)> 5000 AND sum(total_order_amount)< 10000) THEN '5000 A 10000'
+WHEN (sum(total_order_amounto)> 10000) THEN '+10000'
+END  as ventas_acumuladas_client
+FROM cursosdata.fac_pedidos p
+LEFT JOIN cursosdata.dim_clients c on c.id_cliente = p.id_client
+GROUP BY complet_name
+ORDER BY ventas_acumuladas_client  DESC)
+
+Select
+ventas_acumuladas_client,
+count(nombre_completo) as cantidad
+FROM segmento_clientes_ventas
+GROUP BY ventas_acumuladas_client
+ORDER BY ventas_acumuladas_client
+
+2. Create a customer segment by **purchase frequency** using the following ranges:
+    - Ranks
+        1. <3
+        2. >3 and <6
+        3. >6 and <10
+        4. >10 and <15
+        5. +15
+        
+     with segmento_clientes_ventas as(
+SELECT 
+CONCAT(nombre_cliente," ",apellido_cliente) as nombre_completo,
+CASE WHEN count(id_pedido)< 3 THEN '0 A 3'
+WHEN count(id_pedido)> 3 AND count(id_pedido)<= 6 THEN '4 A 6'
+WHEN ((count(id_pedido))> 6 AND (count(id_pedido))<= 10) THEN '7 A 10'
+WHEN (count(id_pedido))> 10 AND (count(id_pedido))< 15 THEN '11 A 15'
+WHEN (count(id_pedido))> 15 THEN '+15'
+END  as cantidad_ventas_acumuladas
+FROM cursosdata.fac_pedidos p
+LEFT JOIN cursosdata.dim_clientes c on c.id_cliente = p.id_cliente
+GROUP BY nombre_completo
+ORDER BY cantidad_ventas_acumuladas  DESC)
+
+Select
+cantidad_ventas_acumuladas,
+count(nombre_completo) as cantidad
+FROM segmento_clientes_ventas
+GROUP BY cantidad_ventas_acumuladas
+ORDER BY cantidad_ventas_acumuladas
+
+Marketing analysis 
+1. Calculate the cpc of marketing campaigns to know which ones perform better in terms of cpc
+ELECT 
+id_campaign,
+round(SUM(costo)/SUM(clicks),2) as cpc
+from cursosdata.campaign_facebook_ads_detalle
+GROUP BY id_campaign
+
+2. What are the best campaigns in terms of cpc? - Investigate further to see if the result is consistent.
+SELECT 
+id_campaign,
+round(SUM(costo)/SUM(clicks),2) as cpc
+from cursosdata.campaign_facebook_ads_detalle
+GROUP BY id_campaign
+ORDER BY cpc asc
+limit 5
+
+3. How many new users to the web per month does each campaign bring? Bring the name of the campaign not the id.
+SELECT campaign_name,
+month(fecha_google_analytics) as mes,
+sum(nuevos_usuarios) as total_nuevos_usuarios,
+sum(usuarios) as total_usuarios
+FROM cursosdata.campaign_google_analytics ga
+LEFT JOIN cursosdata.campaign_facebook_ads fb on fb.id_campaign = ga.id_campaign
+GROUP BY campaign_name,month(fecha_google_analytics)
+order by campaign_name,month(fecha_google_analytics)
+
+4. How many sessions on average did we have in the month of November?
+SELECT month(fecha_google_analytics),
+avg(sesiones)
+FROM cursosdata.campaign_google_analytics
+where month(fecha_google_analytics) =11
+group by month(fecha_google_analytics)
+
+5. What is the average bounce rate per campaign? round to two places after the comma.
+SELECT id_campaign,
+round(avg(bounce_rate),2) as media_bounce_rate
+FROM cursosdata.campaign_google_analytics
+GROUP BY id_campaign
