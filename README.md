@@ -3,8 +3,8 @@ Hi!
 I'am Melany
 
 <details>
-<summary>Click to toggle contents of code</summary>
+<summary>Do you wanna know more?</summary>
 ```
-CODE!
+Contact me!
 ```
 </details>
