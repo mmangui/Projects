@@ -28,8 +28,8 @@ categorias as categoria_producto
 FROM datoscrudos.raw_productos_wocommerce
 
 3. Insert the records with the cleaning done to the created table.
-INSERT INTO cursosdata.dim_producto
 
+INSERT INTO cursosdata.dim_producto
 SELECT
 id as id_producto,
 sku as sku_producto,
@@ -65,8 +65,8 @@ JSON_VALUE(billing,'$[0].address_1') AS direccion_cliente
 FROM datoscrudos.raw_clientes_wocommerce
 
 # 3) Insert the clean data into the new table. 
-INSERT INTO cursosdata.dim_clientes
 
+INSERT INTO cursosdata.dim_clientes
 SELECT
 id as id_cliente,
 DATE(STR_TO_DATE(date_created,"%d/%m/%Y %H:%i:%s")) AS fecha_creacion_cliente,
@@ -150,3 +150,212 @@ SELECT
 		cupon_articulo
 	FROM datoscrudos.raw_pedidos_wocommerce w
 	LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
+	
+
+INSERT INTO cursosdata.fac_pedidos
+SELECT
+    numero_de_pedido,
+    CASE WHEN p.SKU_producto IS NULL THEN 3 ELSE CAST(p.SKU_producto AS UNSIGNED) END as SKU_producto,
+		estado_de_pedido,
+		DATE(fecha_de_pedido) AS fecha_pedido,
+		w.`id cliente`as id_cliente,
+		CASE WHEN titulo_metodo_de_pago LIKE '%Stripe%' THEN 'Stripe' ELSE 'Tarjeta' END AS tipo_pago_pedido,
+		CEILING(coste_articulo) AS costo_pedido,
+		importe_de_descuento_del_carrito,
+		importe_total_pedido,
+		cantidad as cantidad_pedido,
+		cupon_articulo
+FROM datoscrudos.raw_pedidos_wocommerce w
+LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
+
+5) INSERTAR 
+----- Tratato de duplicados -- detectamos que no nos deja insertar la información porque encontramos un duplicado --
+
+SELECT * FROM datoscrudos.raw_pedidos_wocommerce
+WHERE numero_de_pedido = 41624
+
+----- Debemos primero analizar si podemos detectar porque viene y si no se elimina, reportamos al equipo que corresponda --
+
+DELETE FROM datoscrudos.raw_pedidos_wocommerce WHERE numero_de_pedido = 41624 and `id cliente` = 1324
+
+--- Una vez eliminado volves a ejecutar la query --
+
+INSERT INTO cursosdata.fac_pedidos
+SELECT
+    numero_de_pedido,
+    CASE WHEN p.SKU_producto IS NULL THEN 3 ELSE CAST(p.SKU_producto AS UNSIGNED) END as SKU_producto,
+		estado_de_pedido,
+		DATE(fecha_de_pedido) AS fecha_pedido,
+		w.`id cliente`as id_cliente,
+		CASE WHEN titulo_metodo_de_pago LIKE '%Stripe%' THEN 'Stripe' ELSE 'Tarjeta' END AS tipo_pago_pedido,
+		CEILING(coste_articulo) AS costo_pedido,
+		importe_de_descuento_del_carrito,
+		importe_total_pedido,
+		cantidad as cantidad_pedido,
+		cupon_articulo
+FROM datoscrudos.raw_pedidos_wocommerce w
+LEFT JOIN cursosdata.dim_producto p ON p.nombre_producto = w.nombre_del_articulo
+
+## Tarea 04 - Crear la tabla fac_pagos
+
+# 1)Obtener el número de pedido con la función RIGHT. Quitar el numero de pedido de la descripción que es lo que nos va a permitir unir esta tabla con otras
+
+		SELECT 
+		created,
+		RIGHT(description,5) as id_pedido,
+		amount,
+		currency,
+		fee,
+		net,
+		status,
+		type
+		FROM datoscrudos.raw_pagos_stripe;
+
+# 2) Pasar a timestamp el campo “created”
+
+		SELECT 
+		TIMESTAMP(created) as fecha_pago,
+		RIGHT(description,5) as id_pedido,
+		amount,
+		currency,
+		fee,
+		net,
+		status,
+		type
+		FROM datoscrudos.raw_pagos_stripe ;
+
+# 3) a. Reemplazar las commas por puntos
+
+		SELECT 
+		TIMESTAMP(created) as fecha_pago,
+		RIGHT(description,5) as id_pedido,
+		amount,
+		currency,
+		REPLACE(fee,',','.') as comision_pago,
+		REPLACE(net,',','.') as neto_pago,
+		status,
+		type
+		FROM datoscrudos.raw_pagos_stripe;
+
+	# b. Convertir el número a decimal con dos lugares despues de la comma.
+
+		SELECT 
+		TIMESTAMP(created) as fecha_pago,
+		RIGHT(description,5) as id_pedido,
+		amount,
+		currency,
+		CAST(REPLACE(fee,',','.') AS DECIMAL(10,2)) as comision_pago,
+		CAST(REPLACE(net,',','.') AS DECIMAL(10,2)) as neto_pago,
+		status,
+		type
+		FROM datoscrudos.raw_pagos_stripe
+
+SET @@SESSION.sql_mode='ALLOW_INVALID_DATES';
+
+INSERT INTO cursosdata.fac_pagos_stripe
+
+SELECT
+timestamp(created) as fecha_pago,
+RIGHT(description,5) as id_pedido,
+amount as importe_pago,
+currency as moneda_pago,
+CAST(REPLACE(fee,',','.') AS DECIMAL(10,2)) as comision_pago,
+CAST(REPLACE(net,',','.') AS DECIMAL(10,2)) as neto_pago,
+type as tipo_pago
+FROM datoscrudos.raw_pagos_stripe;
+
+
+Tarea 05 - Crear la tabla ad_facebook_ads
+
+INSERT INTO ad_facebook_ads
+SELECT 
+created_time as fecha_creacion_ad,
+campaign_id as id_campaign,
+ad_set_id as id_ad_set,
+ad_source_id as id_ad,
+bid_type as bid_type,
+status as estado_ad,
+name as nombre_ad
+FROM datoscrudos.raw_dim_ad_facebook_ads;
+
+Tarea 06 - Crear la tabla campaign_facebook_ads
+Pasar la fecha a timestamp porque no viene con el formato correcto
+SELECT
+id as id_campaign,
+source_campaign_id,
+timestamp(created_time) as campaign_created,
+status as campaign_status,
+name as campaign_name,
+objective as campaign_objective,
+timestamp(stop_time) as campaign_stop_time
+FROM datoscrudos.raw_dim_campaigns_facebook f
+
+
+INSERTAMOS 
+INSERT INTO campaign_facebook_ads
+
+SELECT
+id as id_campaign,
+source_campaign_id,
+timestamp(created_time) as campaign_created,
+status as campaign_status,
+name as campaign_name,
+objective as campaign_objective,
+timestamp(stop_time) as campaign_stop_time
+FROM datoscrudos.raw_dim_campaigns_facebook f
+
+## Tarea 07 - Crear la tabla campaign_facebook_ads_detalle
+La tabla de campañas de facebook ads tiene las campañas que se realizaron de facebook. Recuerden que una campaña puede tener varios ads involucrados.
+Vamos a crear esta tabla apartir de la tabla `raw_dim_campaigns_facebook`
+SELECT 
+date(date) as fecha_campaign,
+ad_id as id_ad,
+campaign_id as id_campaign,
+clicks as clicks,
+cpc as cpc,
+impressions as impresiones,
+spend as costo,
+reach as alcance
+FROM datoscrudos.raw_facebook_campaigns;
+
+INSERT INTO campaign_facebook_ads_detalle
+
+SELECT 
+date(date) as fecha_campaign,
+ad_id as id_ad,
+campaign_id as id_campaign,
+clicks as clicks,
+cpc as cpc,
+impressions as impresiones,
+spend as costo,
+reach as alcance
+FROM datoscrudos.raw_facebook_campaigns;
+
+## Tarea 08 - Crear la tabla campaign_google_analytics
+La tabla de google analytics tiene información sobre el tráfico que va a una web de forma diaria. 
+En este caso vamos a tener información sobre el tráfico que generó las campañas de facebook ads que está haciendo la empresa.
+Vamos a crear la tabla a partir de raw_google_analytics_campaigns
+Pasar la fecha date a formato de fech
+SELECT 
+date(date) as fecha_google_analytics,
+bounce_rate,
+campaign as id_campaign,
+new_users as nuevos_usuarios,
+pageviews_per_session as vista_paginas_por_sesion,
+sessions as sesiones,
+users as usuarios
+FROM datoscrudos.raw_google_analytics_campaigns
+
+
+INSERT INTO campaign_google_analytics
+
+SELECT 
+        date(date) as fecha_google_analytics,
+        bounce_rate,
+        campaign as id_campaign,
+        new_users as nuevos_usuarios,
+        pageviews_per_session as vista_paginas_por_sesion,
+        sessions as sesiones,
+        users as usuarios
+        FROM datoscrudos.raw_google_analytics_campaigns
+
